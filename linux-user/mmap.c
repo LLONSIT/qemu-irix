@@ -364,7 +364,6 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int prot,
     abi_ulong ret, end, real_start, real_end, retaddr, host_offset, host_len;
 
     mmap_lock();
-#ifdef DEBUG_MMAP
     {
         printf("mmap: start=0x" TARGET_ABI_FMT_lx
                " len=0x" TARGET_ABI_FMT_lx " prot=%c%c%c flags=",
@@ -389,9 +388,9 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int prot,
         }
         printf("fd=%d offset=" TARGET_ABI_FMT_lx "\n", fd, offset);
     }
-#endif
 
     if (offset & ~TARGET_PAGE_MASK) {
+        printf("Offset (%d) is less than target page size\n", offset & ~TARGET_PAGE_MASK);
         errno = EINVAL;
         goto fail;
     }
@@ -555,11 +554,9 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int prot,
  the_end1:
     page_set_flags(start, start + len, prot | PAGE_VALID);
  the_end:
-#ifdef DEBUG_MMAP
     printf("ret=0x" TARGET_ABI_FMT_lx "\n", start);
     page_dump(stdout);
     printf("\n");
-#endif
     tb_invalidate_phys_range(start, start + len);
     mmap_unlock();
     return start;
