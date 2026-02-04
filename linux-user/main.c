@@ -4874,7 +4874,7 @@ int main(int argc, char **argv, char **envp)
     #ifdef TARGET_ABI_IRIX
     
     cpu_model = "24Kf";
-    printf("CPU Model: %s\n", cpu_model);
+    //printf("CPU Model: %s\n", cpu_model);
     #else
     if (cpu_model == NULL) {
         cpu_model = cpu_get_model(get_elf_eflags(execfd));

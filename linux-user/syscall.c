@@ -135,7 +135,7 @@
 #include <linux/audit.h>
 #include "linux_loop.h"
 #include "uname.h"
-
+#include "irix/irix_sigs.h"
 #include "qemu.h"
 
 #ifndef CLONE_IO
@@ -8334,6 +8334,143 @@ static int qemu_execve(const char *filename, char **argv, char **envp)
     return ret;
 }
 
+const char *irix_sig_to_string(int sig)
+{
+    switch (sig)
+    {
+    case IRIX_SIGHUP:
+        return "SIGHUP";
+    case IRIX_SIGINT:
+        return "SIGINT";
+    case IRIX_SIGQUIT:
+        return "SIGQUIT";
+    case IRIX_SIGILL:
+        return "SIGILL";
+    case IRIX_SIGTRAP:
+        return "SIGTRAP";
+    case IRIX_SIGEMT:
+        return "SIGEMT";
+    case IRIX_SIGFPE:
+        return "SIGFPE";
+    case IRIX_SIGKILL:
+        return "SIGKILL";
+    case IRIX_SIGBUS:
+        return "SIGBUS";
+    case IRIX_SIGSEGV:
+        return "SIGSEGV";
+    case IRIX_SIGSYS:
+        return "SIGSYS";
+    case IRIX_SIGPIPE:
+        return "SIGPIPE";
+    case IRIX_SIGALRM:
+        return "SIGALRM";
+    case IRIX_SIGTERM:
+        return "SIGTERM";
+    case IRIX_SIGUSR1:
+        return "SIGUSR1";
+    case IRIX_SIGUSR2:
+        return "SIGUSR2";
+    case IRIX_SIGCLD:
+        return "SIGCLD";
+    case IRIX_SIGPWR:
+        return "SIGPWR";
+    case IRIX_SIGSTOP:
+        return "SIGSTOP";
+    case IRIX_SIGTSTP:
+        return "SIGTSTP";
+    case IRIX_SIGPOLL:
+        return "SIGPOLL";
+    case IRIX_SIGIO:
+        return "SIGIO";
+    case IRIX_SIGURG:
+        return "SIGURG";
+    case IRIX_SIGWINCH:
+        return "SIGWINCH";
+    case IRIX_SIGVTALRM:
+        return "SIGVTALRM";
+    case IRIX_SIGPROF:
+        return "SIGPROF";
+    case IRIX_SIGCONT:
+        return "SIGCONT";
+    case IRIX_SIGTTIN:
+        return "SIGTTIN";
+    case IRIX_SIGTTOU:
+        return "SIGTTOU";
+    case IRIX_SIGXCPU:
+        return "SIGXCPU";
+    case IRIX_SIGXFSZ:
+        return "SIGXFSZ";
+
+    case 6: /* IRIX_SIGIOT / IRIX_SIGABRT */
+        return "SIGABRT";
+
+    default:
+        return "SIGUNKNOWN";
+    }
+}
+
+
+static int do_irix_signal(void *cpu_env, int signo)
+{
+    CPUArchState *env = cpu_env;  // ONLY if cpu_env is already CPUArchState*
+    target_siginfo_t info;
+
+    qemu_log("Doing IRIX signal signo=%s (%d)\n",
+             irix_sig_to_string(signo), signo);
+
+    memset(&info, 0, sizeof(info));
+    info.si_signo = SIGINT;
+    info.si_errno = 0;
+    info.si_code  = 0;
+
+    /* For SIGINT/SIGTERM this is NOT a fault signal, so don't use FAULT */
+    queue_signal(env, signo, QEMU_SI_KILL, NULL);
+
+    return 0;
+}
+
+struct target_irix4_stat {
+        unsigned int   st_ino;
+        short   st_dev;
+        ushort  st_mode;
+        short   st_nlink;
+        ushort  st_uid;
+        ushort  st_gid;
+        short   st_rdev;
+        int   st_ssize;
+        int  st_satime;
+        int  st_smtime;
+        int  st_sctime;
+
+};
+
+
+static int host_to_irix4_stat(CPUState *env,
+                              abi_ulong addr,
+                              const struct stat *hst)
+{
+    struct target_irix4_stat tst;
+
+    memset(&tst, 0, sizeof(tst));
+
+    tst.st_dev   = hst->st_dev;
+    tst.st_ino   = hst->st_ino;
+    tst.st_mode  = hst->st_mode;
+    tst.st_nlink = hst->st_nlink;
+    tst.st_uid   = hst->st_uid;
+    tst.st_gid   = hst->st_gid;
+    tst.st_rdev  = hst->st_rdev;
+    tst.st_ssize  = hst->st_size;
+    tst.st_satime = hst->st_atime;
+    tst.st_smtime = hst->st_mtime;
+    tst.st_sctime = hst->st_ctime;
+
+    return copy_to_user(addr, &tst, sizeof(tst));
+}
+
+
+
+
 /* do_syscall() should always have a single exit point at the end so
    that actions, such as logging of syscall results, can be performed.
    All errnos that do_syscall() returns must be -TARGET_<errcode>. */
@@ -8482,7 +8619,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = do_brk(arg1);
         break;
 #ifdef TARGET_NR_fork
-    case TARGET_NR_fork:
+    case TARGET_NR_fork:   
         ret = get_errno(do_fork(cpu_env, TARGET_SIGCHLD, 0, 0, 0, 0, 0, 0));
         break;
 #endif
@@ -8895,10 +9032,6 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = alarm(arg1);
         break;
 #endif
-#ifdef TARGET_NR_oldfstat
-    case TARGET_NR_oldfstat:
-        goto unimplemented;
-#endif
 #ifdef TARGET_NR_pause /* not on alpha */
     case TARGET_NR_pause:
         if (!block_signals(cpu_env)) {
@@ -9130,7 +9263,24 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_signal
     case TARGET_NR_signal:
-        goto unimplemented;
+    {
+        struct target_sigaction act;
+
+        act._sa_handler = arg2;
+        memset(&act.sa_mask, 0, sizeof(act.sa_mask));
+        act.sa_flags = 0;
+
+        ret = get_errno(do_sigaction(cpu_env, arg1, &act, NULL));
+
+        /* IRIX libc hands down its signal trampoline, such that the kernel
+         * needn't bother with installing one for the different ABIs
+         */
+        if (!is_error(ret)) {
+            ((TaskState *)cpu->opaque)->sigtramp = arg2;
+        }
+        break;
+    }
+
 #endif
     case TARGET_NR_acct:
         if (arg1 == 0) {
@@ -9271,15 +9421,17 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 	    struct target_sigaction act, oact, *pact, *old_act;
 
 	    if (arg2) {
-                if (!lock_user_struct(VERIFY_READ, old_act, arg2, 1))
-                    goto efault;
-		act._sa_handler = old_act->_sa_handler;
-		target_siginitset(&act.sa_mask, old_act->sa_mask.sig[0]);
-		act.sa_flags = old_act->sa_flags;
-		unlock_user_struct(old_act, arg2, 0);
-		pact = &act;
+            if (!lock_user_struct(VERIFY_READ, old_act, arg2, 1)) {
+                goto efault;
+            }
+
+		    act._sa_handler = old_act->_sa_handler;
+		    target_siginitset(&act.sa_mask, old_act->sa_mask.sig[0]);
+		    act.sa_flags = old_act->sa_flags;
+		    unlock_user_struct(old_act, arg2, 0);
+		    pact = &act;
 	    } else {
-		pact = NULL;
+		    pact = NULL;
 	    }
 
 	    ret = get_errno(do_sigaction(cpu_env, arg1, pact, &oact));
@@ -10666,12 +10818,13 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_fstat
     case TARGET_NR_fstat:
+        gemu_log("FSTAT!\n");
         ret = get_errno(fstat(arg1, &st));
         goto do_stat;
 #endif
     do_stat:
         if (!is_error(ret)) {
-            ret = host_to_target_stat(cpu_env, arg2, &st);
+            ret = host_to_irix4_stat(cpu_env, arg2, &st);
         }
         break;
 #ifdef TARGET_NR_fstatat
@@ -14783,7 +14936,17 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         break;
     }
 #endif
+    #ifdef TARGET_NR_wait
+    case TARGET_NR_wait:
+    {
+        int status;
+        ret = get_errno(safe_wait4(-1, &status, 0, 0));
+        if (!is_error(ret) && ret && put_user_s32(host_to_target_waitstatus(status), arg1))
+            goto efault;
+    break;
 
+    }
+#endif
     default:
         goto unimplemented;
 

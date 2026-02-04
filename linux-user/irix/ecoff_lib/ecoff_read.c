@@ -13,11 +13,22 @@ typedef struct LibSection_s
     char alignment[0x4];
 } LibSection; // Size: 0x30
 
+#define DEBUG_PRINT(...)                  \
+    do                                    \
+    {                                     \
+        if (sEcoffDebug)                  \
+        {                                 \
+            fprintf(stderr, __VA_ARGS__); \
+        }                                 \
+    } while (0)
+
+#define ARRAY_COUNT(arr) (int)(sizeof(arr) / sizeof(arr[0]))
 static int sEcoffFileHeaderMagics[ECOFF_FILE_HEADER_MAGIC_NUMBERS] = {MIPSEBMAGIC, MIPSELMAGIC, SMIPSEBMAGIC, SMIPSELMAGIC, MIPSEBUMAGIC, MIPSELUMAGIC};
 static u_int8_t *sEcoffBuffer;
 static bool sEcoffReadInitialized = false;
 static bool sEcoffFileHeaderByteSwapped = false;
 static scnhdr **sEcoffSectionsHeader;
+static const bool sEcoffDebug = false;
 
 // Function to convert octal to decimal
 static int decimal_to_octal(int n)
@@ -42,7 +53,7 @@ static int decimal_to_octal(int n)
 static const char *ecoff_aout_header_magic_to_string(u_int16_t magic)
 {
     int realMagic = decimal_to_octal(magic);
-    printf("From octal magic is: %d\n", realMagic);
+    DEBUG_PRINT("From octal magic is: %d\n", realMagic);
     switch (realMagic)
     {
     case OMAGIC:
@@ -54,7 +65,7 @@ static const char *ecoff_aout_header_magic_to_string(u_int16_t magic)
     case LIBMAGIC:
         return "LIBMAGIC";
     default:
-        printf("(ecoff_read.c) Unrecognized ecoff aout header magic: %d", magic);
+        DEBUG_PRINT("(ecoff_read.c) Unrecognized ecoff aout header magic: %d", magic);
         return NULL;
     }
 }
@@ -76,7 +87,7 @@ static const char *ecoff_file_header_magic_to_string(u_int16_t magic)
     case MIPSELUMAGIC:
         return "MIPSELUMAGIC";
     default:
-        printf("(ecoff_read.c) Unrecognized ecoff file header magic: %d", magic);
+        DEBUG_PRINT("(ecoff_read.c) Unrecognized ecoff file header magic: %d", magic);
         return NULL;
     }
 }
@@ -134,7 +145,7 @@ void ecoff_init(u_int8_t *buf, size_t len)
         sEcoffBuffer = malloc(len);
         if (sEcoffBuffer == NULL)
         {
-            printf("Error couldn't allocate memory for ecoff buffer!\n");
+            DEBUG_PRINT("Error couldn't allocate memory for ecoff buffer!\n");
             exit(EXIT_FAILURE);
         }
 
@@ -167,43 +178,43 @@ aouthdr *ecoff_get_aout_header(void)
 
 void ecoff_debug_print_aout_header(aouthdr *hdr)
 {
-    fprintf(stderr, "-- Ecoff aout header -- \n\n");
-    fprintf(stderr, "Magic: %s\n", ecoff_aout_header_magic_to_string(hdr->magic));
-    fprintf(stderr, "Version stamp: %x\n", hdr->vstamp);
-    fprintf(stderr, "Text section size: %x\n", hdr->tsize);
-    fprintf(stderr, "Data section size: %x\n", hdr->dsize);
-    fprintf(stderr, "Bss section size: %x\n", hdr->bsize);
-    fprintf(stderr, "Entry pt: %x\n", hdr->entry);
-    fprintf(stderr, "Text section start: %x\n", hdr->text_start);
-    fprintf(stderr, "Data section start: %x\n", hdr->data_start);
-    fprintf(stderr, "Bss section start: %x\n", hdr->bss_start);
-    fprintf(stderr, "GPR MASK: %x\n", hdr->gprmask);
+    DEBUG_PRINT("-- Ecoff aout header -- \n\n");
+    DEBUG_PRINT("Magic: %s\n", ecoff_aout_header_magic_to_string(hdr->magic));
+    DEBUG_PRINT("Version stamp: %x\n", hdr->vstamp);
+    DEBUG_PRINT("Text section size: %x\n", hdr->tsize);
+    DEBUG_PRINT("Data section size: %x\n", hdr->dsize);
+    DEBUG_PRINT("Bss section size: %x\n", hdr->bsize);
+    DEBUG_PRINT("Entry pt: %x\n", hdr->entry);
+    DEBUG_PRINT("Text section start: %x\n", hdr->text_start);
+    DEBUG_PRINT("Data section start: %x\n", hdr->data_start);
+    DEBUG_PRINT("Bss section start: %x\n", hdr->bss_start);
+    DEBUG_PRINT("GPR MASK: %x\n", hdr->gprmask);
 }
 
 void ecoff_debug_print_file_header(filehdr *hdr)
 {
-    fprintf(stderr, "-- Ecoff file header -- \n");
-    fprintf(stderr, "Magic: %x\n", hdr->f_magic);
-    fprintf(stderr, "Number of sections: %d\n", hdr->f_nscns);
-    fprintf(stderr, "Time date stamp: %d\n", hdr->f_timdat);
-    fprintf(stderr, "Ptr to symbolic header %x\n", hdr->f_symptr);
-    fprintf(stderr, "Size of symbolic header %x\n", hdr->f_nsyms);
-    fprintf(stderr, "Optional header size %d\n", hdr->f_opthdr);
-    fprintf(stderr, "Flags %x\n", hdr->f_flags);
+    DEBUG_PRINT("-- Ecoff file header -- \n");
+    DEBUG_PRINT("Magic: %x\n", hdr->f_magic);
+    DEBUG_PRINT("Number of sections: %d\n", hdr->f_nscns);
+    DEBUG_PRINT("Time date stamp: %d\n", hdr->f_timdat);
+    DEBUG_PRINT("Ptr to symbolic header %x\n", hdr->f_symptr);
+    DEBUG_PRINT("Size of symbolic header %x\n", hdr->f_nsyms);
+    DEBUG_PRINT("Optional header size %d\n", hdr->f_opthdr);
+    DEBUG_PRINT("Flags %x\n", hdr->f_flags);
 }
 
 inline static void ecoff_debug_print_section_header(scnhdr *hdr)
 {
-    fprintf(stderr, "Section name: %s\n", (char *)hdr->s_name);
-    fprintf(stderr, "Section physical address: %x\n", hdr->s_paddr);
-    fprintf(stderr, "Section virtual address: %x\n", hdr->s_vaddr);
-    fprintf(stderr, "Section size: %x\n", hdr->s_size);
-    fprintf(stderr, "File ptr to section data: %x\n", hdr->s_scnptr);
-    fprintf(stderr, "Ptr to relocation: %x\n", hdr->s_relptr);
-    fprintf(stderr, "Number to gp histogram: %d\n", hdr->s_lnnoptr);
-    fprintf(stderr, "Relaction entries: %d\n", hdr->s_nreloc);
-    fprintf(stderr, "GP histogram entries: %d\n", hdr->s_nlnno);
-    fprintf(stderr, "Section flags: %x\n\n", hdr->s_flags);
+    DEBUG_PRINT("Section name: %s\n", (char *)hdr->s_name);
+    DEBUG_PRINT("Section physical address: %x\n", hdr->s_paddr);
+    DEBUG_PRINT("Section virtual address: %x\n", hdr->s_vaddr);
+    DEBUG_PRINT("Section size: %x\n", hdr->s_size);
+    DEBUG_PRINT("File ptr to section data: %x\n", hdr->s_scnptr);
+    DEBUG_PRINT("Ptr to relocation: %x\n", hdr->s_relptr);
+    DEBUG_PRINT("Number to gp histogram: %d\n", hdr->s_lnnoptr);
+    DEBUG_PRINT("Relaction entries: %d\n", hdr->s_nreloc);
+    DEBUG_PRINT("GP histogram entries: %d\n", hdr->s_nlnno);
+    DEBUG_PRINT("Section flags: %x\n\n", hdr->s_flags);
 }
 
 bool ecoff_is_header_valid(void)
@@ -221,7 +232,8 @@ bool ecoff_is_header_valid(void)
     {
         if (ecoffFileHeader->f_magic == sEcoffFileHeaderMagics[i])
         {
-            printf("Ecoff magic found: %s\n", ecoff_file_header_magic_to_string(ecoffFileHeader->f_magic));
+            DEBUG_PRINT("Ecoff magic found: %s\n", ecoff_file_header_magic_to_string(ecoffFileHeader->f_magic));
+
             return true;
         }
     }
@@ -245,7 +257,7 @@ void ecoff_sections_header_read(void)
 
     if (sEcoffSectionsHeader == NULL)
     {
-        printf("Couldn't allocate memory aborting!\n");
+        DEBUG_PRINT("Couldn't allocate memory aborting!\n");
         abort();
     }
 
@@ -255,13 +267,19 @@ void ecoff_sections_header_read(void)
      */
     for (int i = 0; i < fileHeader->f_nscns; i++, ecoffSections++)
     {
-        printf("Allocating\n");
+        if (sEcoffDebug)
+        {
+            DEBUG_PRINT("Allocating\n");
+        }
         sEcoffSectionsHeader[i] = malloc(sizeof(scnhdr));
-        printf("Copying!\n");
+        if (sEcoffDebug)
+        {
+            DEBUG_PRINT("Copying!\n");
+        }
         *(sEcoffSectionsHeader[i]) = *ecoffSections;
-        printf("Byteswaping!\n");
+        DEBUG_PRINT("Byteswaping!\n");
         ecoff_byteswap_section_header(sEcoffSectionsHeader[i]);
-        printf("Printing!!\n");
+        DEBUG_PRINT("Printing!!\n");
         ecoff_debug_print_section_header(sEcoffSectionsHeader[i]);
     }
 }
@@ -283,7 +301,7 @@ scnhdr *ecoff_get_section_header(const char *sectionName)
     return NULL;
 }
 
-char *ecoff_get_interp_name(void)
+const char *ecoff_get_interp_name(void)
 {
     ECOFF_LIB_CHECK;
 
@@ -299,7 +317,7 @@ char *ecoff_get_interp_name(void)
             }
         }
     }
-    printf("More than one shared libraries not supported yet!\n");
+    DEBUG_PRINT("Binary is static or has more than one library!\n");
     return NULL;
 }
 
@@ -309,7 +327,7 @@ void ecoff_destroy(void)
 
     if (sEcoffSectionsHeader == NULL)
     {
-        printf("Not freeing sections because they are NULL!\n");
+        DEBUG_PRINT("Not freeing sections because they are NULL!\n");
         return;
     }
     filehdr *fileHeader = (filehdr *)sEcoffBuffer;
@@ -321,9 +339,114 @@ void ecoff_destroy(void)
     }
 
     free(sEcoffBuffer);
-    
+
     sEcoffBuffer = NULL;
     sEcoffFileHeaderByteSwapped = false;
     sEcoffSectionsHeader = NULL;
     sEcoffReadInitialized = false;
+}
+
+int ecoff_get_data_sections_size(char *exception)
+{
+    static const char *sEcoffDataSectionsName[] = {".data", ".sdata", ".lit8", ".lit4", ".rdata"};
+    filehdr *fileHeader = (filehdr *)sEcoffBuffer;
+    int sectionsSize = 0;
+
+    if (!sEcoffFileHeaderByteSwapped)
+    {
+        ecoff_byteswap_filehdr(fileHeader);
+    }
+
+    for (int i = 0; i < fileHeader->f_nscns; i++)
+    {
+        if (exception != NULL && (strcmp((char*)sEcoffSectionsHeader[i]->s_name, exception) == 0))
+        {
+            continue;
+        }
+        for (int j = 0; j < ARRAY_COUNT(sEcoffDataSectionsName); j++)
+        {
+            if (strcmp((char*)sEcoffSectionsHeader[i]->s_name, sEcoffDataSectionsName[j]) == 0)
+            {
+                sectionsSize += sEcoffSectionsHeader[i]->s_size;
+                break;
+            }
+        }
+    }
+    assert(sectionsSize > 0);
+    return sectionsSize;
+}
+
+int ecoff_get_bss_sections_size(char *exception)
+{
+    static const char *sEcoffDataSectionsName[] = {".sbss", ".bss"};
+    filehdr *fileHeader = (filehdr *)sEcoffBuffer;
+    int sectionsSize = 0;
+
+    if (!sEcoffFileHeaderByteSwapped)
+    {
+        ecoff_byteswap_filehdr(fileHeader);
+    }
+
+    for (int i = 0; i < fileHeader->f_nscns; i++)
+    {
+        if (exception != NULL && (strcmp((char*)sEcoffSectionsHeader[i]->s_name, exception) == 0))
+        {
+            continue;
+        }
+        for (int j = 0; j < ARRAY_COUNT(sEcoffDataSectionsName); j++)
+        {
+            if (strcmp((char*)sEcoffSectionsHeader[i]->s_name, sEcoffDataSectionsName[j]) == 0)
+            {
+                sectionsSize += sEcoffSectionsHeader[i]->s_size;
+                break;
+            }
+        }
+    }
+    assert(sectionsSize > 0);
+    return sectionsSize;
+}
+
+scnhdr *ecoff_get_section_after_text(void)
+{
+    filehdr *fileHeader = (filehdr *)sEcoffBuffer;
+
+    if (!sEcoffFileHeaderByteSwapped)
+    {
+        ecoff_byteswap_filehdr(fileHeader);
+    }
+
+    for (int i = 0; i < fileHeader->f_nscns; i++)
+    {
+        DEBUG_PRINT("sec pos: %d  sec name: %s\n", i, sEcoffSectionsHeader[i]->s_name);
+    }
+
+    int secInitPos = -1;
+    for (int i = 0; i < fileHeader->f_nscns; i++)
+    {
+        if (strcmp((char *)sEcoffSectionsHeader[i]->s_name, ".init") == 0)
+        {
+            DEBUG_PRINT("Section init found at: %d\n", i);
+            secInitPos = i;
+            break;
+        }
+    }
+
+    assert((secInitPos > 0) || ((secInitPos + 1) < fileHeader->f_nscns));
+    return sEcoffSectionsHeader[secInitPos + 1];
+}
+
+bool ecoff_has_lib_section(void) {
+    filehdr *fileHeader = (filehdr *)sEcoffBuffer;
+
+    if (!sEcoffFileHeaderByteSwapped)
+    {
+        ecoff_byteswap_filehdr(fileHeader);
+    }
+
+    for (int i = 0; i < fileHeader->f_nscns; i++) {
+        if (strcmp((char*)sEcoffSectionsHeader[i]->s_name, ".init") == 0) {
+            return true;
+        }
+    }
+    return false;
 }

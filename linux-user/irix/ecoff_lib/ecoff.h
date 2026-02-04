@@ -73,6 +73,10 @@ void ecoff_init(u_int8_t *buf, size_t len);
 bool ecoff_is_header_valid(void);
 void ecoff_sections_header_read(void);
 scnhdr* ecoff_get_section_header(const char* sectionName);
-char *ecoff_get_interp_name(void);
+const char *ecoff_get_interp_name(void);
 void ecoff_destroy(void);
+scnhdr* ecoff_get_section_after_text(void);
+int ecoff_get_data_sections_size(char *exception);
+int ecoff_get_bss_sections_size(char *exception);
+bool ecoff_has_lib_section(void);
 #endif /* ECOFF_H */

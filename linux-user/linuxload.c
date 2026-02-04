@@ -141,6 +141,7 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
                 struct linux_binprm *bprm)
 {
     int retval;
+    bool isStatic = false;
 
     bprm->fd = fdexec;
     bprm->filename = (char *)filename;
@@ -153,29 +154,28 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
 
     ecoff_init((uint8_t *)bprm->buf, BPRM_BUF_SIZE);
 
+    if (!ecoff_is_header_valid())
+    {
+        return -ENOEXEC;
+    }
+
     ecoff_sections_header_read();
 
-    if (retval >= 0)
-    {
-        if (ecoff_is_header_valid())
-        {
-            printf("Everything good so far!\n");
-            char *interpName = ecoff_get_interp_name();
+    char *interpName = ecoff_get_interp_name();
 
-            if (interpName == NULL)
-            {
-                printf("ERROR: ecoff doesn't have a valid interpreter!\n");
-                return -ENOEXEC;
-            }
-            ecoff_destroy();
-            // retval = load_elf_binary(bprm, infop);
-            retval = load_ecoff_binary(bprm, infop, interpName);
-        }
-        else
-        {
-            return -ENOEXEC;
-        }
+    if (interpName == NULL)
+    {
+        isStatic = true;
     }
+    else if (interpName == NULL && !ecoff_has_lib_section())
+    {
+        printf("Ecoff file not supported yet \n");
+        return -ENOEXEC;
+    }
+
+    ecoff_destroy();
+
+    retval = load_ecoff_binary(bprm, infop, interpName, isStatic);
 
     if (retval >= 0)
     {

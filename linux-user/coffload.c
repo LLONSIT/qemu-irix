@@ -12,6 +12,7 @@
 #include "ecoffload.h"
 
 int gGPValue;
+int gEntryPt;
 
 enum {
     ADDR_NO_RANDOMIZE = 0x0040000,      /* disable randomization of VA space */
@@ -379,24 +380,33 @@ void map_ecoff_interp_data_segment(int imageFd, const char *imageName, struct im
 
 void map_ecoff_data_segment(int imageFd, const char *imageName, struct image_info *info, bool isInterp)
 {
+    abi_ulong vaddr;
+    abi_ulong filesz;
+    abi_ulong dataSize;
+    abi_ulong file_offset;
+    char* sectionAfterInitName;
+    scnhdr* currentSection;
+
     if (isInterp)
     {
         map_ecoff_interp_data_segment(imageFd, imageName, info);
         return;
     }
 
-    scnhdr *rodata = ecoff_get_section_header(".rdata");
-    scnhdr *data = ecoff_get_section_header(".data");
-    scnhdr *lit8 = ecoff_get_section_header(".lit8");
-    scnhdr *sdata = ecoff_get_section_header(".sdata");
-    scnhdr *sbss = ecoff_get_section_header(".sbss");
-    scnhdr *bss = ecoff_get_section_header(".bss");
+    currentSection = ecoff_get_section_after_text(); // rdata
+    file_offset = currentSection->s_scnptr;
+    sectionAfterInitName = currentSection->s_name;
+    vaddr = currentSection->s_vaddr;
+    dataSize = filesz = currentSection->s_size;
+
+    filesz = dataSize += ecoff_get_data_sections_size((char*)currentSection->s_name);
+    filesz += ecoff_get_bss_sections_size((char*)currentSection->s_name);
+
+    scnhdr* bss = ecoff_get_section_header(".bss");
+    scnhdr* sbss = ecoff_get_section_header(".sbss");
+    assert(bss != NULL && sbss != NULL);
 
     mmap_lock();
-
-    abi_ulong vaddr = rodata->s_vaddr;
-    abi_ulong filesz = rodata->s_size + data->s_size + lit8->s_size + sdata->s_size;
-    abi_ulong file_offset = rodata->s_scnptr;
 
     abi_ulong vaddr_po = TARGET_ELF_PAGEOFFSET(vaddr);
     abi_ulong vaddr_ps = TARGET_ELF_PAGESTART(vaddr);
@@ -418,9 +428,9 @@ void map_ecoff_data_segment(int imageFd, const char *imageName, struct image_inf
     zero_bss(vaddr_ef, vaddr_em, PROT_READ | PROT_WRITE);
     mmap_unlock();
 
-    info->start_data = rodata->s_vaddr;
-    info->end_data = rodata->s_vaddr + filesz;
-    info->brk = rodata->s_vaddr + filesz + sbss->s_size + bss->s_size;
+    info->start_data = vaddr;
+    info->end_data = vaddr + dataSize;
+    info->brk = vaddr + dataSize + sbss->s_size + bss->s_size;
 }
 
 void load_ecoff_image(const char *image_name, int image_fd,
@@ -445,7 +455,7 @@ void load_ecoff_image(const char *image_name, int image_fd,
     }
 
     // Map text
-    printf("MMAP\n");
+    //printf("MMAP\n");
     map_ecoff_text_segment(image_fd, image_name, text, info);
     map_ecoff_data_segment(image_fd, image_name, info, isInterp);
     ecoff_destroy();
@@ -479,7 +489,7 @@ exit_perror:
     exit(-1);
 }
 
-int load_ecoff_binary(struct linux_binprm *bprm, struct image_info *info, char *interpName)
+int load_ecoff_binary(struct linux_binprm *bprm, struct image_info *info, char *interpName, bool isStatic)
 {
     struct image_info interp_info;
     char *scratch;
@@ -490,6 +500,7 @@ int load_ecoff_binary(struct linux_binprm *bprm, struct image_info *info, char *
     // First load the image
     aouthdr *aoutHeader = (aouthdr *)&bprm->buf[sizeof(filehdr)];
     gGPValue = __swab32(aoutHeader->gp_value);
+    gEntryPt = __swab32(aoutHeader->entry);
 
 
     load_ecoff_image(bprm->filename, bprm->fd, info,
@@ -554,7 +565,9 @@ int load_ecoff_binary(struct linux_binprm *bprm, struct image_info *info, char *
         info->env_strings -= o;
     }
 
-    load_ecoff_interp(interpName, &interp_info, bprm->buf);
+    if (!isStatic) {
+        load_ecoff_interp(interpName, &interp_info, bprm->buf);
+    }
 
     //info->personality = 0x0001 | STICKY_TIMEOUTS | MMAP_PAGE_ZERO;
     // Imitate SVR4 behaviour
@@ -574,7 +587,8 @@ int load_ecoff_binary(struct linux_binprm *bprm, struct image_info *info, char *
         -1,
         0);
 
-        printf("ARGC: %d\n", bprm->argc);
-        printf("ARGV: %s\n", *bprm->argv);
+
+        //printf("ARGC: %d\n", bprm->argc);
+        //printf("ARGV: %s\n", *bprm->argv);
     return 0;
 }

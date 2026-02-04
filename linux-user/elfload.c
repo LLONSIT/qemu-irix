@@ -19,6 +19,7 @@
 #endif
 
 extern int gGPValue;
+extern int gEntryPt;
 #define ELF_OSABI   ELFOSABI_SYSV
 
 /* from personality.h */
@@ -912,8 +913,8 @@ static inline void init_thread(struct target_pt_regs *regs,
                                struct image_info *infop)
 {
     regs->cp0_status = 2 << CP0St_KSU;
-    regs->cp0_epc = 0x4001e0;
-    printf("GP to start: %x\n", gGPValue);
+    regs->cp0_epc = gEntryPt;
+    //printf("GP to start: %x\n", gGPValue);
     regs->regs[28] = gGPValue;
     regs->regs[29] = infop->start_stack;
 }
