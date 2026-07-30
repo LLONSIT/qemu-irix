@@ -898,6 +898,7 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUPPCState *en
 
 #ifdef TARGET_ABI_IRIX
 extern int irix_emulate_prda;
+extern bool gIsEcoffBinary;
 #endif
 
 #define ELF_START_MMAP 0x80000000
@@ -913,9 +914,16 @@ static inline void init_thread(struct target_pt_regs *regs,
                                struct image_info *infop)
 {
     regs->cp0_status = 2 << CP0St_KSU;
-    regs->cp0_epc = gEntryPt;
-    //printf("GP to start: %x\n", gGPValue);
-    regs->regs[28] = gGPValue;
+    if (gIsEcoffBinary) 
+    {
+        regs->cp0_epc = gEntryPt;
+        regs->regs[28] = gGPValue;
+    } 
+    else 
+    {
+        regs->cp0_epc = infop->entry;
+    }
+
     regs->regs[29] = infop->start_stack;
 }
 

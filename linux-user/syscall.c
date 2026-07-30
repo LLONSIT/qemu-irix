@@ -10818,7 +10818,6 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_fstat
     case TARGET_NR_fstat:
-        gemu_log("FSTAT!\n");
         ret = get_errno(fstat(arg1, &st));
         goto do_stat;
 #endif

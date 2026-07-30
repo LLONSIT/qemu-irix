@@ -7,6 +7,8 @@
 
 #define NGROUPS 32
 
+bool gIsEcoffBinary = false;
+
 /* ??? This should really be somewhere else.  */
 abi_long memcpy_to_target(abi_ulong dest, const void *src,
                           unsigned long len)
@@ -136,21 +138,14 @@ abi_ulong loader_build_argptr(int envc, int argc, abi_ulong sp,
     return sp;
 }
 
-int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
-                struct target_pt_regs *regs, struct image_info *infop,
-                struct linux_binprm *bprm)
+int load_elf(struct linux_binprm *bprm, struct image_info *infop) 
 {
-    int retval;
+    return load_elf_binary(bprm, infop);
+}
+
+int load_ecoff(struct linux_binprm *bprm, struct image_info *infop)
+{
     bool isStatic = false;
-
-    bprm->fd = fdexec;
-    bprm->filename = (char *)filename;
-    bprm->argc = count(argv);
-    bprm->argv = argv;
-    bprm->envc = count(envp);
-    bprm->envp = envp;
-
-    retval = prepare_binprm(bprm);
 
     ecoff_init((uint8_t *)bprm->buf, BPRM_BUF_SIZE);
 
@@ -175,7 +170,38 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
 
     ecoff_destroy();
 
-    retval = load_ecoff_binary(bprm, infop, interpName, isStatic);
+    return load_ecoff_binary(bprm, infop, interpName, isStatic);
+}
+
+int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
+                struct target_pt_regs *regs, struct image_info *infop,
+                struct linux_binprm *bprm)
+{
+    int retval;
+
+    bprm->fd = fdexec;
+    bprm->filename = (char *)filename;
+    bprm->argc = count(argv);
+    bprm->argv = argv;
+    bprm->envc = count(envp);
+    bprm->envp = envp;
+
+    retval = prepare_binprm(bprm);
+
+    if (retval <= 0) 
+    {
+        return -ENOEXEC;
+    }
+
+    if (bprm->buf[0] == 0x7f && bprm->buf[1] == 'E' && bprm->buf[2] == 'L' && bprm->buf[3] == 'F') 
+    {
+        retval = load_elf(bprm, infop);  
+    } 
+    else 
+    {
+        retval = load_ecoff(bprm, infop);
+        gIsEcoffBinary = true;
+    }
 
     if (retval >= 0)
     {
