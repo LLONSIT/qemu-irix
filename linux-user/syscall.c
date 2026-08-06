@@ -10823,7 +10823,16 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #endif
     do_stat:
         if (!is_error(ret)) {
-            ret = host_to_irix4_stat(cpu_env, arg2, &st);
+            #ifndef TARGET_ABI_IRIX
+            extern bool gIsEcoffBinary;
+            if (gIsEcoffBinary) {
+                ret = host_to_irix4_stat(cpu_env, arg2, &st);
+            } else {
+                ret = host_to_target_stat(cpu_env, arg2, &st);
+            }
+            #else
+            ret = host_to_target_stat(cpu_env, arg2, &st);
+            #endif
         }
         break;
 #ifdef TARGET_NR_fstatat
